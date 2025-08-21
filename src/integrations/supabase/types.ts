@@ -14,7 +14,192 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          consultant_id: string | null
+          created_at: string | null
+          created_by: string | null
+          duration_minutes: number | null
+          id: string
+          lead_id: string
+          notes: string | null
+          scheduled_at: string
+          status: Database["public"]["Enums"]["appointment_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          consultant_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          scheduled_at: string
+          status?: Database["public"]["Enums"]["appointment_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          consultant_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["appointment_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_consultant_id_fkey"
+            columns: ["consultant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_timeline: {
+        Row: {
+          created_at: string | null
+          id: string
+          lead_id: string
+          notes: string | null
+          status: Database["public"]["Enums"]["lead_status"]
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          status: Database["public"]["Enums"]["lead_status"]
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_timeline_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_timeline_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_agent_id: string | null
+          country_of_interest: string | null
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          message: string | null
+          phone: string | null
+          source: string | null
+          status: Database["public"]["Enums"]["lead_status"] | null
+          updated_at: string | null
+          visa_type: string | null
+        }
+        Insert: {
+          assigned_agent_id?: string | null
+          country_of_interest?: string | null
+          created_at?: string | null
+          email: string
+          full_name: string
+          id?: string
+          message?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"] | null
+          updated_at?: string | null
+          visa_type?: string | null
+        }
+        Update: {
+          assigned_agent_id?: string | null
+          country_of_interest?: string | null
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          message?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"] | null
+          updated_at?: string | null
+          visa_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email: string
+          full_name: string
+          id: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +208,21 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      appointment_status:
+        | "scheduled"
+        | "completed"
+        | "cancelled"
+        | "rescheduled"
+      lead_status:
+        | "new"
+        | "contacted"
+        | "interested"
+        | "qualified"
+        | "appointment_scheduled"
+        | "consultation_completed"
+        | "converted"
+        | "rejected"
+      user_role: "admin" | "agent" | "consultant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +349,24 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      appointment_status: [
+        "scheduled",
+        "completed",
+        "cancelled",
+        "rescheduled",
+      ],
+      lead_status: [
+        "new",
+        "contacted",
+        "interested",
+        "qualified",
+        "appointment_scheduled",
+        "consultation_completed",
+        "converted",
+        "rejected",
+      ],
+      user_role: ["admin", "agent", "consultant"],
+    },
   },
 } as const
