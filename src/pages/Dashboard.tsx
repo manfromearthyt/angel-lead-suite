@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, Routes, Route } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardContent } from "@/components/dashboard/DashboardContent";
 import { supabase } from "@/integrations/supabase/client";
+import LeadsPage from "./LeadsPage";
+import AppointmentsPage from "./AppointmentsPage";
+import SettingsPage from "./SettingsPage";
+
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -54,7 +58,12 @@ export default function Dashboard() {
         <div className="flex-1 flex flex-col">
           <DashboardHeader userProfile={userProfile} />
           <main className="flex-1 p-6">
-            <DashboardContent userProfile={userProfile} />
+            <Routes>
+              <Route index element={<DashboardContent userProfile={userProfile} />} />
+              <Route path="leads" element={<LeadsPage userProfile={userProfile} />} />
+              <Route path="appointments" element={<AppointmentsPage userProfile={userProfile} />} />
+              <Route path="settings" element={<SettingsPage userProfile={userProfile} />} />
+            </Routes>
           </main>
         </div>
       </div>
