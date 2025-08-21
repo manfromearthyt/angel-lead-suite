@@ -8,35 +8,56 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* Professional navy blue theme with gold accents */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 220 39% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 39% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 39% 11%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Navy blue primary */
+    --primary: 220 39% 11%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 220 39% 15%;
+    
+    /* Warm gold accent */
+    --accent: 38 92% 50%;
+    --accent-foreground: 220 39% 11%;
+    --accent-muted: 38 92% 95%;
+    
+    /* Light neutrals */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 39% 11%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 8.9% 46.1%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
+    /* Status colors */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 39% 11%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 39% 11%;
 
-    --radius: 0.5rem;
+    /* Design system additions */
+    --gradient-primary: linear-gradient(135deg, hsl(220 39% 11%), hsl(220 39% 15%));
+    --gradient-accent: linear-gradient(135deg, hsl(38 92% 50%), hsl(38 92% 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(220 39% 11%) 0%, hsl(220 39% 15%) 50%, hsl(38 92% 50%) 100%);
+    
+    --shadow-sm: 0 1px 2px 0 hsl(220 39% 11% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(220 39% 11% / 0.1), 0 2px 4px -1px hsl(220 39% 11% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(220 39% 11% / 0.1), 0 4px 6px -2px hsl(220 39% 11% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(220 39% 11% / 0.1), 0 10px 10px -5px hsl(220 39% 11% / 0.04);
+
+    --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
 
@@ -100,6 +121,56 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Hero section styling */
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+  
+  /* Custom button variants */
+  .btn-hero {
+    @apply bg-gradient-to-r from-accent to-accent/90 text-accent-foreground hover:from-accent/90 hover:to-accent/80 shadow-lg hover:shadow-xl transition-all duration-300;
+  }
+  
+  .btn-outline-hero {
+    @apply border-2 border-accent text-accent bg-transparent hover:bg-accent hover:text-accent-foreground transition-all duration-300;
+  }
+  
+  /* Status indicators */
+  .status-new { @apply bg-blue-100 text-blue-800 border-blue-200; }
+  .status-contacted { @apply bg-yellow-100 text-yellow-800 border-yellow-200; }
+  .status-interested { @apply bg-purple-100 text-purple-800 border-purple-200; }
+  .status-qualified { @apply bg-green-100 text-green-800 border-green-200; }
+  .status-appointment_scheduled { @apply bg-indigo-100 text-indigo-800 border-indigo-200; }
+  .status-consultation_completed { @apply bg-emerald-100 text-emerald-800 border-emerald-200; }
+  .status-converted { @apply bg-green-100 text-green-900 border-green-300; }
+  .status-rejected { @apply bg-red-100 text-red-800 border-red-200; }
+  
+  /* Card enhancements */
+  .card-interactive {
+    @apply hover:shadow-lg transition-shadow duration-300 cursor-pointer;
+  }
+  
+  /* Timeline styles */
+  .timeline-item {
+    @apply relative pl-6 pb-6;
+  }
+  
+  .timeline-item:before {
+    content: '';
+    @apply absolute left-0 top-2 w-3 h-3 bg-accent rounded-full border-2 border-background;
+  }
+  
+  .timeline-item:after {
+    content: '';
+    @apply absolute left-[5px] top-5 w-0.5 h-full bg-border;
+  }
+  
+  .timeline-item:last-child:after {
+    @apply hidden;
   }
 }
