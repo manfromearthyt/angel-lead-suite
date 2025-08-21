@@ -153,7 +153,7 @@ export default function AppointmentsPage() {
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-
+  
     if (!selectedDate) {
       toast({
         title: "Error",
@@ -162,28 +162,60 @@ export default function AppointmentsPage() {
       });
       return;
     }
-
-    // Combine date and time
-    const scheduledDateTime = new Date(selectedDate);
-    const [hours, minutes] = formData.scheduled_at.split(':');
-    scheduledDateTime.setHours(parseInt(hours), parseInt(minutes));
-
+  
     try {
+      // Check if lead is assigned to an agent
+      const { data: leadData, error: leadError } = await supabase
+        .from('leads')
+        .select('assigned_agent_id, status')
+        .eq('id', formData.lead_id)
+        .single();
+  
+      if (leadError) throw leadError;
+  
+      // If lead is not assigned, assign it to the current user if they're an agent
+      if (!leadData.assigned_agent_id && userProfile?.role === 'telecalling_agent') {
+        await supabase
+          .from('leads')
+          .update({ 
+            assigned_agent_id: user?.id,
+            status: 'in_progress'
+          })
+          .eq('id', formData.lead_id);
+      }
+  
+      // Combine date and time
+      const scheduledDateTime = new Date(selectedDate);
+      const [hours, minutes] = formData.scheduled_at.split(':');
+      scheduledDateTime.setHours(parseInt(hours), parseInt(minutes));
+  
+      // Create the appointment
       const { error } = await supabase
         .from('appointments')
         .insert([{
           ...formData,
           scheduled_at: scheduledDateTime.toISOString(),
-          created_by: user?.id
+          created_by: user?.id,
+          status: 'scheduled'
         }]);
-
+  
       if (error) throw error;
-
+  
+      // Add a remark about the appointment
+      await supabase
+        .from('lead_remarks')
+        .insert([{
+          lead_id: formData.lead_id,
+          user_id: user?.id,
+          remark_text: `Appointment scheduled for ${scheduledDateTime.toLocaleString()}`,
+          remark_type: 'appointment_update'
+        }]);
+  
       toast({
         title: "Success",
         description: "Appointment scheduled successfully"
       });
-
+  
       setShowCreateDialog(false);
       setFormData({
         lead_id: "",
@@ -197,7 +229,7 @@ export default function AppointmentsPage() {
       console.error('Error creating appointment:', error);
       toast({
         title: "Error",
-        description: "Failed to schedule appointment",
+        description: error instanceof Error ? error.message : "Failed to schedule appointment",
         variant: "destructive"
       });
     }

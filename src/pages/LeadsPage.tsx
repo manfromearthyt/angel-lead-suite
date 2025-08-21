@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, User, Calendar, MessageSquare, Phone } from "lucide-react";
+import { DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
+
+
+import { RemarksTimeline } from "@/components/RemarksTimeline";
 interface Lead {
   id: string;
   full_name: string;
@@ -22,7 +27,7 @@ interface Lead {
   country_of_interest: string | null;
   visa_type: string | null;
   message: string | null;
-  status: string;
+  status: Database["public"]["Enums"]["lead_status"];
   priority: string;
   assigned_agent_id: string | null;
   created_at: string;
@@ -34,7 +39,7 @@ interface Lead {
 interface Profile {
   id: string;
   full_name: string;
-  role: string;
+  role: Database["public"]["Enums"]["user_role"];
 }
 
 export default function LeadsPage() {
@@ -44,7 +49,7 @@ export default function LeadsPage() {
   const [agents, setAgents] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showLeadFormDialog, setShowLeadFormDialog] = useState(false); // Unified dialog for create/edit
   const [showRemarksDialog, setShowRemarksDialog] = useState(false);
   const [showTimelineDialog, setShowTimelineDialog] = useState(false);
   const [newRemark, setNewRemark] = useState("");
@@ -61,11 +66,43 @@ export default function LeadsPage() {
     priority: "medium",
     assigned_agent_id: ""
   });
+  
+  // Form validation state
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchLeads();
     fetchAgents();
   }, [user]);
+
+  // Reset form data when the dialog is closed or opened for a new lead
+  useEffect(() => {
+    if (!showLeadFormDialog) {
+      setFormData({
+        full_name: "",
+        email: "",
+        phone: "",
+        country_of_interest: "",
+        visa_type: "",
+        message: "",
+        priority: "medium",
+        assigned_agent_id: ""
+      });
+      setSelectedLead(null); // Clear selected lead when dialog closes
+    } else if (selectedLead) {
+      // If editing, populate form with selected lead data
+      setFormData({
+        full_name: selectedLead.full_name,
+        email: selectedLead.email,
+        phone: selectedLead.phone || "",
+        country_of_interest: selectedLead.country_of_interest || "",
+        visa_type: selectedLead.visa_type || "",
+        message: selectedLead.message || "",
+        priority: selectedLead.priority,
+        assigned_agent_id: selectedLead.assigned_agent_id || ""
+      });
+    }
+  }, [showLeadFormDialog, selectedLead]);
 
   const fetchLeads = async () => {
     try {
@@ -80,7 +117,7 @@ export default function LeadsPage() {
         .order('created_at', { ascending: false });
 
       // Filter leads based on user role
-      if (userProfile?.role === 'telecalling_agent') {
+      if (userProfile?.role === 'agent') {
         query = query.eq('assigned_agent_id', user?.id);
       }
 
@@ -105,7 +142,7 @@ export default function LeadsPage() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .in('role', ['telecalling_agent', 'admin']);
+        .in('role', ['agent', 'admin']);
 
       if (error) throw error;
       setAgents(data || []);
@@ -114,21 +151,73 @@ export default function LeadsPage() {
     }
   };
 
-  const handleCreateLead = async (e: React.FormEvent) => {
+  const handleCreateOrUpdateLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from('leads')
-        .insert([formData]);
-
-      if (error) throw error;
-
+    
+    // Basic validation
+    if (!formData.full_name.trim()) {
       toast({
-        title: "Success",
-        description: "Lead created successfully"
+        title: "Validation Error",
+        description: "Full name is required",
+        variant: "destructive"
       });
+      return;
+    }
 
-      setShowCreateDialog(false);
+    if (!formData.email.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Email is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const leadData = {
+        full_name: formData.full_name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim() || null,
+        country_of_interest: formData.country_of_interest.trim() || null,
+        visa_type: formData.visa_type.trim() || null,
+        message: formData.message.trim() || null,
+        priority: formData.priority,
+        assigned_agent_id: formData.assigned_agent_id || null,
+        status: 'new' // Default status for new leads
+      };
+
+      if (selectedLead) {
+        // Update existing lead
+        await handleUpdateLead(selectedLead.id, leadData);
+      } else {
+        // Create new lead
+        const { data, error } = await supabase
+          .from('leads')
+          .insert([{ ...leadData, source: 'admin_dashboard' }])
+          .select();
+
+        if (error) throw error;
+
+        // Add a remark about lead creation
+        if (data && data[0]?.id) {
+          await supabase
+            .from('lead_remarks')
+            .insert([{
+              lead_id: data[0].id,
+              user_id: user?.id,
+              remark_text: 'Lead created through admin dashboard',
+              remark_type: 'status_change'
+            }]);
+        }
+
+        toast({
+          title: "Success",
+          description: "Lead created successfully"
+        });
+      }
+
+      // Reset form and close dialog
+      setShowLeadFormDialog(false);
       setFormData({
         full_name: "",
         email: "",
@@ -139,12 +228,15 @@ export default function LeadsPage() {
         priority: "medium",
         assigned_agent_id: ""
       });
+      setSelectedLead(null);
+      
+      // Refresh the leads list
       fetchLeads();
     } catch (error) {
-      console.error('Error creating lead:', error);
+      console.error('Error saving lead:', error);
       toast({
         title: "Error",
-        description: "Failed to create lead",
+        description: error instanceof Error ? error.message : "Failed to save lead",
         variant: "destructive"
       });
     }
@@ -152,13 +244,27 @@ export default function LeadsPage() {
 
   const handleAssignLead = async (leadId: string, agentId: string) => {
     try {
+      // Update the lead
       const { error } = await supabase
         .from('leads')
-        .update({ assigned_agent_id: agentId, status: 'assigned' })
+        .update({ assigned_agent_id: agentId, status: 'in_progress' })
         .eq('id', leadId);
-
+  
       if (error) throw error;
-
+  
+      // Add a remark about the assignment
+      const agent = agents.find(a => a.id === agentId);
+      if (agent) {
+        await supabase
+          .from('lead_timeline')
+          .insert([{
+            lead_id: leadId,
+            user_id: user?.id,
+            notes: `Lead assigned to ${agent.full_name}`,
+            status: 'assigned' // Using 'assigned' as status for assignment remark
+          }]);
+      }
+  
       toast({
         title: "Success",
         description: "Lead assigned successfully"
@@ -180,12 +286,12 @@ export default function LeadsPage() {
 
     try {
       const { error } = await supabase
-        .from('lead_remarks')
+        .from('lead_timeline')
         .insert([{
           lead_id: selectedLead.id,
           user_id: user?.id,
-          remark_text: newRemark,
-          remark_type: 'general'
+          notes: newRemark,
+          status: 'in_progress' // Using 'in_progress' as a generic status for remarks
         }]);
 
       if (error) throw error;
@@ -206,6 +312,83 @@ export default function LeadsPage() {
       });
     }
   };
+
+// Add this function to handle updating a lead
+const handleUpdateLead = async (leadId: string, updates: Partial<Lead>) => {
+  try {
+    const { error } = await supabase
+      .from('leads')
+      .update(updates)
+      .eq('id', leadId);
+
+    if (error) throw error;
+
+    // Add a remark about the update
+    await supabase
+      .from('lead_timeline')
+      .insert([{
+        lead_id: leadId,
+        user_id: user?.id,
+        notes: 'Lead details updated',
+        status: 'in_progress' // Using 'in_progress' as a generic status for updates
+      }]);
+
+    toast({
+      title: "Success",
+      description: "Lead updated successfully"
+    });
+    
+    // Refresh the leads list
+    fetchLeads();
+    return true;
+  } catch (error) {
+    console.error('Error updating lead:', error);
+    toast({
+      title: "Error",
+      description: "Failed to update lead",
+      variant: "destructive"
+    });
+    return false;
+  }
+};
+
+// Add this function to handle deleting a lead (admin only)
+const handleDeleteLead = async (leadId: string) => {
+  if (userProfile?.role !== 'admin') {
+    toast({
+      title: "Access Denied",
+      description: "Only administrators can delete leads",
+      variant: "destructive"
+    });
+    return false;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('leads')
+      .delete()
+      .eq('id', leadId);
+
+    if (error) throw error;
+
+    toast({
+      title: "Success",
+      description: "Lead deleted successfully"
+    });
+    
+    // Refresh the leads list
+    fetchLeads();
+    return true;
+  } catch (error) {
+    console.error('Error deleting lead:', error);
+    toast({
+      title: "Error",
+      description: "Failed to delete lead",
+      variant: "destructive"
+    });
+    return false;
+  }
+};
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -238,6 +421,10 @@ export default function LeadsPage() {
     );
   }
 
+  // Debug log to check user role
+  console.log('Current user role:', userProfile?.role);
+  console.log('User has permission to add leads:', userProfile?.role === 'admin' || userProfile?.role === 'agent');
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -247,19 +434,19 @@ export default function LeadsPage() {
             Manage and track all leads in your system
           </p>
         </div>
-        {userProfile?.role === 'admin' && (
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        {/* Always show the button for now for testing */}
+        <Dialog open={showLeadFormDialog} onOpenChange={setShowLeadFormDialog}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => setSelectedLead(null)}> {/* Clear selected lead when opening for new */}
                 <Plus className="h-4 w-4 mr-2" />
                 Add New Lead
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Create New Lead</DialogTitle>
+                <DialogTitle>{selectedLead ? 'Edit Lead' : 'Create New Lead'}</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleCreateLead} className="space-y-4">
+              <form onSubmit={handleCreateOrUpdateLead} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="full_name">Full Name *</Label>
@@ -348,15 +535,14 @@ export default function LeadsPage() {
                   </Select>
                 </div>
                 <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>
+                  <Button type="button" variant="outline" onClick={() => setShowLeadFormDialog(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit">Create Lead</Button>
+                  <Button type="submit">{selectedLead ? "Update Lead" : "Create Lead"}</Button>
                 </div>
               </form>
             </DialogContent>
           </Dialog>
-        )}
       </div>
 
       <div className="grid gap-4">
@@ -418,22 +604,47 @@ export default function LeadsPage() {
                   }}
                 >
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  Add Remark
+                  View Details
                 </Button>
-
-                {userProfile?.role === 'admin' && !lead.assigned_agent_id && (
-                  <Select onValueChange={(agentId) => handleAssignLead(lead.id, agentId)}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Assign to agent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.id}>
-                          {agent.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                
+                {/* Edit Button - Visible to all users */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Set the form data with the current lead's data
+                    setFormData({
+                      full_name: lead.full_name || "",
+                      email: lead.email || "",
+                      phone: lead.phone || "",
+                      country_of_interest: lead.country_of_interest || "",
+                      visa_type: lead.visa_type || "",
+                      message: lead.message || "",
+                      priority: lead.priority || "medium",
+                      assigned_agent_id: lead.assigned_agent_id || ""
+                    });
+                    setSelectedLead(lead);
+                    setShowLeadFormDialog(true);
+                  }}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+                
+                {/* Delete Button - Only visible to admins */}
+                {userProfile?.role === 'admin' && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={async () => {
+                      if (window.confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
+                        await handleDeleteLead(lead.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
                 )}
               </div>
             </CardContent>
@@ -442,31 +653,65 @@ export default function LeadsPage() {
       </div>
 
       {/* Remarks Dialog */}
-      <Dialog open={showRemarksDialog} onOpenChange={setShowRemarksDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Remark for {selectedLead?.full_name}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleAddRemark} className="space-y-4">
-            <div>
-              <Label htmlFor="remark">Remark</Label>
-              <Textarea
-                id="remark"
-                value={newRemark}
-                onChange={(e) => setNewRemark(e.target.value)}
-                placeholder="Enter your remark..."
-                required
-              />
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={() => setShowRemarksDialog(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">Add Remark</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+     {/* Lead Details Dialog with Remarks Timeline */}
+<Dialog open={showRemarksDialog} onOpenChange={setShowRemarksDialog}>
+  <DialogContent className="max-w-2xl">
+    <DialogHeader>
+      <DialogTitle>Lead Details</DialogTitle>
+      <DialogDescription>
+        {selectedLead?.full_name} - {selectedLead?.email}
+      </DialogDescription>
+    </DialogHeader>
+    
+    <div className="space-y-4">
+      {/* Lead Information */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">Phone</p>
+          <p>{selectedLead?.phone || 'N/A'}</p>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">Country of Interest</p>
+          <p>{selectedLead?.country_of_interest || 'N/A'}</p>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">Visa Type</p>
+          <p>{selectedLead?.visa_type || 'N/A'}</p>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">Status</p>
+          <Badge className={getStatusColor(selectedLead?.status || '')}>
+            {selectedLead?.status || 'N/A'}
+          </Badge>
+        </div>
+      </div>
+
+      {selectedLead?.message && (
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">Message</p>
+          <p className="text-sm mt-1">{selectedLead.message}</p>
+        </div>
+      )}
+
+      {/* Remarks Timeline */}
+      <div className="border-t pt-4">
+        <h3 className="text-lg font-medium mb-4">Timeline & Remarks</h3>
+        <div className="mt-4">
+          <RemarksTimeline 
+            leadId={selectedLead?.id || ''} 
+            leadName={selectedLead?.full_name || 'Lead'} 
+          />
+        </div>
+      </div>
+    </div>
+
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setShowRemarksDialog(false)}>
+        Close
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
     </div>
   );
 }
